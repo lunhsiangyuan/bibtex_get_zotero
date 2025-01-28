@@ -307,6 +307,34 @@ def fetch_bibtex_from_pmid(pmid):
     Returns:
         str: 文獻的 BibTeX 格式，如果出錯則返回 None。 (The BibTeX format of the literature, or None if an error occurs.)
     """
+    # 確保每個條目都有 ID 欄位
+    # Ensure each entry has an ID field
+    try:
+        # 從 PubMed 獲取引用資料
+        # Get citation data from PubMed
+        citation = fetch_pubmed_citation(pmid)
+        
+        # 創建 BibTeX 資料庫
+        # Create BibTeX database
+        db = BibDatabase()
+        
+        # 確保條目有 ID
+        # Ensure entry has ID
+        if 'ID' not in citation:
+            citation['ID'] = f"PMID_{pmid}"  # 使用 PMID 作為備用 ID
+            
+        db.entries = [citation]
+        
+        # 寫入 BibTeX
+        # Write BibTeX
+        writer = BibTexWriter()
+        return writer.write(db)
+    except Exception as e:
+        print(f"處理 PMID {pmid} 時發生錯誤: {str(e)}")
+        # Error occurred while processing PMID
+        return None
+
+def fetch_pubmed_citation(pmid):
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
     params = {
         "db": "pubmed",
@@ -330,10 +358,11 @@ def fetch_bibtex_from_pmid(pmid):
                 current_key = line.split('-')[0].strip()
                 medline_data[current_key] = line.split('-')[1].strip()
 
-        # 將 MEDLINE 字典轉換為 BibTeX 字典 (Convert MEDLINE dictionary to BibTeX dictionary)
-        bibtex_entry = {
+        # 在返回之前確保有 ID 欄位
+        # Ensure ID field exists before returning
+        citation = {
             'ENTRYTYPE': 'article',
-            'ID': medline_data.get('PMID', ''),
+            'ID': f"PMID_{pmid}",  # 添加 ID 欄位
             'title': medline_data.get('TI', ''),
             'author': ' and '.join(medline_data.get('AU', '').split(';')),
             'journal': medline_data.get('JT', ''),
@@ -347,13 +376,9 @@ def fetch_bibtex_from_pmid(pmid):
         }
 
         # 移除空值 (Remove empty values)
-        bibtex_entry = {k: v for k, v in bibtex_entry.items() if v}
+        citation = {k: v for k, v in citation.items() if v}
 
-        # 使用 BibTexWriter 轉換為 BibTeX 格式 (Convert to BibTeX format using BibTexWriter)
-        db = BibDatabase()
-        db.entries = [bibtex_entry]
-        writer = BibTexWriter()
-        return writer.write(db)
+        return citation
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data for PMID {pmid}: {e}")
